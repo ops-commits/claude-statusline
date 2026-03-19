@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-REPO="kayhng/claude-statusline"
+REPO="ops-commits/claude-statusline"
 RAW="https://raw.githubusercontent.com/$REPO/main/statusline-command.sh"
 DEST="$HOME/.claude/statusline-command.sh"
 SETTINGS="$HOME/.claude/settings.json"

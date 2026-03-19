@@ -14,7 +14,7 @@ Shows usage limits and context in the Claude Code status bar.
 ## Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kayhng/claude-statusline/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ops-commits/claude-statusline/main/install.sh | bash
 ```
 
 Restart Claude Code. That's it.

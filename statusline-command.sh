@@ -237,7 +237,7 @@ fi
   # Self-update: check once per day, compare hash, replace if changed
   SELF="${BASH_SOURCE[0]:-$0}"
   UPDATE_STAMP="/tmp/claude/statusline-update-checked"
-  REMOTE_URL="https://raw.githubusercontent.com/kayhng/claude-statusline/main/statusline-command.sh"
+  REMOTE_URL="https://raw.githubusercontent.com/ops-commits/claude-statusline/main/statusline-command.sh"
   update_mtime=0
   [ -f "$UPDATE_STAMP" ] && update_mtime=$(stat -f %m "$UPDATE_STAMP" 2>/dev/null || echo 0)
   if [ $(( $(date +%s) - update_mtime )) -gt 86400 ]; then
