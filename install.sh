@@ -8,9 +8,8 @@ SETTINGS="$HOME/.claude/settings.json"
 
 echo "Installing claude-statusline..."
 
-# Clean up old version's cache (stale data causes wrong readings)
-rm -f /tmp/claude/statusline-usage-cache.json \
-      /tmp/claude/statusline-last-attempt \
+# Reset old version's throttle state (keeps cache — stale data beats no data)
+rm -f /tmp/claude/statusline-last-attempt \
       /tmp/claude/statusline-backoff \
       /tmp/claude/statusline-update-checked 2>/dev/null
 
