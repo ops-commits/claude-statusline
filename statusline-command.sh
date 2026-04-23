@@ -42,9 +42,19 @@ ctx="$(fmt "${ctx_used:-0}")/$(fmt "${ctx_size:-0}")"
 # Cache file mtime = when data was last successfully fetched (data freshness).
 # Attempt file mtime = when we last tried the API (throttle, not freshness).
 # Backoff file = consecutive failure count (exponential backoff on errors).
-cache_file="/tmp/claude/statusline-usage-cache.json"
-attempt_file="/tmp/claude/statusline-last-attempt"
-backoff_file="/tmp/claude/statusline-backoff"
+#
+# Per-install isolation: CLAUDE_CONFIG_DIR partitions Claude Code installs
+# (e.g. `ccb` runs with CLAUDE_CONFIG_DIR=~/.claude-tech). Each install has its
+# own OAuth token in a separate Keychain slot and must have its own cache files,
+# or switching installs will serve the other account's stale usage numbers.
+# Claude Code's Keychain-slot suffix is sha256(config_dir)[:8]; we mirror that.
+CCD="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+CCD="${CCD%/}"
+CCD_HASH=$(printf '%s' "$CCD" | shasum -a 256 | cut -c1-8)
+
+cache_file="/tmp/claude/statusline-usage-cache-${CCD_HASH}.json"
+attempt_file="/tmp/claude/statusline-last-attempt-${CCD_HASH}"
+backoff_file="/tmp/claude/statusline-backoff-${CCD_HASH}"
 mkdir -p /tmp/claude
 
 needs_refresh=true
@@ -89,7 +99,13 @@ if $needs_refresh; then
   expires_at=""
 
   if command -v security >/dev/null 2>&1; then
-    blob=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)
+    # Default install uses the plain slot; non-default installs use a hashed suffix.
+    if [ "$CCD" = "$HOME/.claude" ]; then
+      keychain_slot="Claude Code-credentials"
+    else
+      keychain_slot="Claude Code-credentials-${CCD_HASH}"
+    fi
+    blob=$(security find-generic-password -s "$keychain_slot" -w 2>/dev/null)
     if [ -n "$blob" ]; then
       eval "$(echo "$blob" | jq -r '
         @sh "token=\(.claudeAiOauth.accessToken // "")",
