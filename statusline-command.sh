@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Status line: context/1M | 5h% | 7d% ±delta | <model> 7d% ±delta | last 4 messages
+# Status line: context/1M | 5h% | 7d% ±delta | F7D% ±delta (model-scoped weekly) | last 4 messages
 set -f
 
 input=$(cat)
@@ -219,8 +219,10 @@ if [ -n "$usage_data" ]; then
     par=$(pace_delta "$d7" "$resets_at")
     line="${ctx} ${dim}|${rst} ${dim}5h${rst} ${h5}%${stale} ${dim}|${rst} ${dim}7d${rst} ${d7}%${par}${stale}"
     if [ -n "$m_pct" ] && [ "$m_pct" != "null" ]; then
+      # Label: first letter of the scoped model + 7D (Fable -> F7D)
+      m_label="$(printf '%s' "${m_name:-M}" | cut -c1 | tr '[:lower:]' '[:upper:]')7D"
       m_par=$(pace_delta "$m_pct" "$m_resets")
-      line="${line} ${dim}|${rst} ${dim}${m_name:-model}${rst} ${m_pct}%${m_par}${stale}"
+      line="${line} ${dim}|${rst} ${dim}${m_label}${rst} ${m_pct}%${m_par}${stale}"
     fi
     printf "%b\n" "$line"
   else
