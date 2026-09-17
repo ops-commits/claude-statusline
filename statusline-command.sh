@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Status line: context/1M | 5h% | 7d% ±delta | last 4 messages
+# Status line: context/1M | 5h% | 7d% ±delta | <model> 7d% ±delta | last 4 messages
 set -f
 
 input=$(cat)
@@ -183,37 +183,46 @@ if [ "$cache_age" -gt 300 ]; then
   stale="${dim}?${rst}"
 fi
 
+# pace_delta <utilization%> <resets_at ISO> -> " +N%" coloured, or "" (only when cache is fresh)
+pace_delta() {
+  local pct=$1 resets=$2 reset_epoch window start_epoch elapsed expected delta dc
+  [ "$cache_age" -le 300 ] || return 0
+  [ -n "$resets" ] && [ "$resets" != "null" ] || return 0
+  reset_epoch=$(iso_to_epoch "$resets") || return 0
+  [ -n "$reset_epoch" ] || return 0
+  window=$((7 * 86400))
+  start_epoch=$((reset_epoch - window))
+  elapsed=$((NOW - start_epoch))
+  [ "$elapsed" -lt 0 ] && elapsed=0
+  [ "$elapsed" -gt "$window" ] && elapsed=$window
+  expected=$(( elapsed * 100 / window ))
+  delta=$((pct - expected))
+  dc=$(delta_color "$delta")
+  if [ "$delta" -ge 0 ]; then printf ' %s+%s%%%s' "$dc" "$delta" "$rst"
+  else printf ' %s%s%%%s' "$dc" "$delta" "$rst"; fi
+}
+
 if [ -n "$usage_data" ]; then
-  # Extract all usage fields in one jq call
+  # Extract all usage fields in one jq call. The model-scoped weekly limit
+  # (e.g. Fable) only exists in limits[] as kind=weekly_scoped.
   eval "$(echo "$usage_data" | jq -r '
     @sh "h5=\(.five_hour.utilization // 0 | floor)",
     @sh "d7=\(.seven_day.utilization // 0 | floor)",
-    @sh "resets_at=\(.seven_day.resets_at // "")"
+    @sh "resets_at=\(.seven_day.resets_at // "")",
+    ((.limits // []) | map(select(.kind == "weekly_scoped" and .scope.model != null)) | .[0]) as $m |
+    @sh "m_name=\($m.scope.model.display_name // "")",
+    @sh "m_pct=\($m.percent // "")",
+    @sh "m_resets=\($m.resets_at // "")"
   ' 2>/dev/null)"
 
   if [ -n "$h5" ] && [ "$h5" != "null" ]; then
-    par=""
-    # Only show delta when data is fresh — stale d7 + current NOW = wrong delta
-    if [ "$cache_age" -le 300 ] && [ -n "$resets_at" ] && [ "$resets_at" != "null" ] && [ "$resets_at" != "" ]; then
-      reset_epoch=$(iso_to_epoch "$resets_at")
-      if [ -n "$reset_epoch" ]; then
-        window=$((7 * 86400))
-        start_epoch=$((reset_epoch - window))
-        elapsed=$((NOW - start_epoch))
-        [ "$elapsed" -lt 0 ] && elapsed=0
-        [ "$elapsed" -gt "$window" ] && elapsed=$window
-        expected=$(( elapsed * 100 / window ))
-        delta=$((d7 - expected))
-        dc=$(delta_color "$delta")
-        if [ "$delta" -ge 0 ]; then
-          par=" ${dc}+${delta}%${rst}"
-        else
-          par=" ${dc}${delta}%${rst}"
-        fi
-      fi
+    par=$(pace_delta "$d7" "$resets_at")
+    line="${ctx} ${dim}|${rst} ${dim}5h${rst} ${h5}%${stale} ${dim}|${rst} ${dim}7d${rst} ${d7}%${par}${stale}"
+    if [ -n "$m_pct" ] && [ "$m_pct" != "null" ]; then
+      m_par=$(pace_delta "$m_pct" "$m_resets")
+      line="${line} ${dim}|${rst} ${dim}${m_name:-model}${rst} ${m_pct}%${m_par}${stale}"
     fi
-
-    printf "%b\n" "${ctx} ${dim}|${rst} ${dim}5h${rst} ${h5}%${stale} ${dim}|${rst} ${dim}7d${rst} ${d7}%${par}${stale}"
+    printf "%b\n" "$line"
   else
     printf "%b\n" "${ctx} ${dim}| 5h - | 7d -${rst}"
   fi
