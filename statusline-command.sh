@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Status line: context/1M | 5h% | 7d% ±delta | F7D% ±delta (model-scoped weekly) | last 4 messages
+# Status line: context/1M | 5h% | 7d% ±delta | F7D% ±delta (model-scoped weekly)
 set -f
 
 input=$(cat)
@@ -17,8 +17,7 @@ eval "$(echo "$input" | jq -r '
     + (.context_window.current_usage.cache_creation_input_tokens // 0)
     + (.context_window.current_usage.cache_read_input_tokens // 0)
   )",
-  @sh "ctx_size=\(.context_window.context_window_size // 0)",
-  @sh "SID=\(.session_id // "")"
+  @sh "ctx_size=\(.context_window.context_window_size // 0)"
 ' 2>/dev/null)"
 
 # --- Format token counts (pure bash, no awk) ---
@@ -232,31 +231,13 @@ else
   printf "%b\n" "${ctx} ${dim}| 5h - | 7d -${rst}"
 fi
 
-# --- Lines 2-5: last 4 user messages (newest first, this session only) ---
-LOG_FILE="$HOME/.claude/message-logs/${SID}.txt"
-if [ -n "$SID" ] && [ -f "$LOG_FILE" ]; then
-  # grep for valid log lines, take last 4, reverse, parse with bash (no sed)
-  grep -E '^[0-9]{2}:[0-9]{2}:[0-9]{2} \[(sent|queued|dequeued)\]' "$LOG_FILE" 2>/dev/null \
-    | tail -4 | tail -r | while IFS= read -r line; do
-    rest="${line:9}"
-    msg="${rest#*] }"
-    [ -z "$msg" ] && continue
-    # Compact: no timestamp, no ANSI (save every char for message text)
-    if [ ${#msg} -gt 60 ]; then
-      msg="${msg:0:57}..."
-    fi
-    echo "> ${msg}"
-  done
-fi
-
 # --- Housekeeping (runs in background, doesn't block output) ---
 {
-  # Prune session logs older than 7 days (at most once per hour)
+  # Prune queue files older than 7 days (at most once per hour)
   PRUNE_STAMP="/tmp/claude/statusline-pruned"
   prune_mtime=0
   [ -f "$PRUNE_STAMP" ] && prune_mtime=$(stat -f %m "$PRUNE_STAMP" 2>/dev/null || echo 0)
   if [ $(( $(date +%s) - prune_mtime )) -gt 3600 ]; then
-    find "$HOME/.claude/message-logs" -name "*.txt" -mtime +7 -delete 2>/dev/null
     find "$HOME/.claude/queues" -name "*.txt" -mtime +7 -delete 2>/dev/null
     touch "$PRUNE_STAMP" 2>/dev/null
   fi
